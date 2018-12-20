@@ -1,0 +1,5 @@
+subscription SubscriptionToBot($userID: ID!){
+  botMessage(userId:$userID){
+    text
+  }
+}

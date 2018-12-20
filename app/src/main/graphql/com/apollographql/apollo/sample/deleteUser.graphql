@@ -1,0 +1,3 @@
+mutation deleteThisUser($deleteUser:DeleteUserInput!){
+  deleteUser(user:$deleteUser)
+}

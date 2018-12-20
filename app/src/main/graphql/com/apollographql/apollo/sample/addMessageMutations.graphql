@@ -1,0 +1,3 @@
+mutation MutationMessage($message : MessageInput!){
+  addMessage(message: $message)
+}
