@@ -54,6 +54,7 @@ public class MessagesRepository implements NewMessageSubject, ApolloConnection {
     private static long longRetryTime  = 5000L;
     private static long shortRetryTime = 500L;
 
+    private String status = "";
     //TODO unit testing
     //TODO with RxComponents.
     // Some ideas make an implementation of MessageViewModel, pass to ModelView  and from MView to MainActivity so it can manange the lifecycle of Sockets
@@ -65,10 +66,12 @@ public class MessagesRepository implements NewMessageSubject, ApolloConnection {
         observers = new ArrayList<>();
         getInitialData();
         connectWithServer();
-
+        rxInit();
 
     }
+    private void rxInit(){
 
+    }
     @Override
     public void register(NewMessagesObserver observer) {
         LoggerDebug.print("observers initialized", TAG);
