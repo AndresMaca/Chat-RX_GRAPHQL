@@ -7,5 +7,7 @@ import java.util.List;
 public interface NewMessagesObserver {
     void update(ChatMessage newChatMessage);
     void loadInitialMessages(List<ChatMessage> chatMessages);
-    void updateSocketStatus(String socketStatus);
+    void updateChatStatus(String socketStatus);
+
+    void initialState(String status);
 }

@@ -19,7 +19,6 @@ import android.widget.TextView;
 import com.coders.dope.Adapter.MessageAdapter;
 import com.coders.dope.database.entity.ChatMessage;
 import com.coders.dope.models.MessagesViewModel;
-import com.coders.dope.repositories.SocketStatus;
 import com.coders.dope.utils.LoggerDebug;
 
 import java.text.SimpleDateFormat;
@@ -31,16 +30,18 @@ import javax.inject.Inject;
 
 import dagger.android.AndroidInjection;
 
+import static com.coders.dope.repositories.ChatStatus.CHAT_CONNECTED;
+
 public class MainActivity extends AppCompatActivity {
     private RecyclerView messageRecyclerView;
     private MessageAdapter recyclerAdapter;
-    private RecyclerView.LayoutManager layoutMananger; //TODO MAke binding
+    private RecyclerView.LayoutManager layoutMananger;
     private Button sendButton;
     private EditText textBox;
-    private boolean loaded = false;
     private int mAlerterHeight;
     private TextView tvAlert;
     private static final long ALERT_LENGTH = 2000;
+    private String status;
 
 
     private static final String TAG = MainActivity.class.getSimpleName();
@@ -50,7 +51,6 @@ public class MainActivity extends AppCompatActivity {
     @Inject
     ViewModelProvider.Factory factory;
 
-    //TODO screen rotation adds new message
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -111,39 +111,21 @@ public class MainActivity extends AppCompatActivity {
             }
 
         });
+        mAlerterHeight = tvAlert.getHeight();
+
         messagesViewModel.getStatusLiveData().observe(this, s -> {
-            if (s != null) {
+            LoggerDebug.print("Chat Status: " + s, TAG);
+            if (s != null && !s.equals("")) {
                 tvAlert.setText(s);
 
-                if (s.equals(SocketStatus.SOCKET_CONNECTED)) {
+                if (s.equals(CHAT_CONNECTED)) {
                     tvAlert.setBackgroundColor(ContextCompat.getColor(this, R.color.colorSuccess));
-                    mAlerterHeight = tvAlert.getHeight();
-                    tvAlert.setTranslationY(-1 * mAlerterHeight);
-                    tvAlert.animate()
-                            .translationY(0) //TODO keep DISCONNECTED STATUS ALWAYS
-                            .setDuration(500)
-                            .setListener(new AnimatorListenerAdapter() {
-                                @Override
-                                public void onAnimationEnd(Animator animation) {
-                                    super.onAnimationEnd(animation);
-                                    final Handler handler = new Handler();
-                                    handler.postDelayed(new Runnable() {
-                                        @Override
-                                        public void run() {
-                                            hideAlert();
-                                        }
-                                    }, ALERT_LENGTH);
-                                }
-                            });
+                    showAlert(true);
+
+
                 } else {
                     tvAlert.setBackgroundColor(ContextCompat.getColor(this, R.color.colorError));
-                    mAlerterHeight = tvAlert.getHeight();
-                    tvAlert.setTranslationY(-1 * mAlerterHeight);
-                    tvAlert.animate()
-                            .translationY(0) //TODO keep DISCONNECTED STATUS ALWAYS
-                            .setDuration(500);
-
-
+                    showAlert(false);
                 }
 
 
@@ -151,6 +133,32 @@ public class MainActivity extends AppCompatActivity {
         });
 
 
+    }
+
+    /*
+    Pops and re start view
+     */
+    private void showAlert(boolean connected) {
+        mAlerterHeight = tvAlert.getHeight();
+        LoggerDebug.print("height: " + mAlerterHeight, TAG);
+        tvAlert.setTranslationY(-1 * mAlerterHeight); //Lo oculta sin animación.
+        tvAlert.animate()
+                .translationY(0)
+                .setDuration(500)
+                .setListener(new AnimatorListenerAdapter() {
+                    @Override
+                    public void onAnimationEnd(Animator animation) {
+                        super.onAnimationEnd(animation);
+                        final Handler handler = new Handler();
+                        handler.postDelayed(new Runnable() {
+                            @Override
+                            public void run() {
+                                LoggerDebug.print("height: " + mAlerterHeight, TAG);
+                                if (connected) hideAlert();
+                            }
+                        }, ALERT_LENGTH);
+                    }
+                });
 
     }
 
@@ -163,6 +171,8 @@ public class MainActivity extends AppCompatActivity {
                     public void onAnimationEnd(Animator animation) {
                         super.onAnimationEnd(animation);
                         tvAlert.setText("");
+                        LoggerDebug.print("height: " + mAlerterHeight, TAG);
+
                     }
                 });
     }

@@ -7,7 +7,6 @@ import com.apollographql.apollo.ApolloClient;
 import com.apollographql.apollo.ApolloSubscriptionCall;
 import com.apollographql.apollo.api.Response;
 import com.apollographql.apollo.exception.ApolloException;
-import com.apollographql.apollo.exception.ApolloHttpException;
 import com.apollographql.apollo.exception.ApolloNetworkException;
 import com.apollographql.apollo.sample.AboutUsQuery;
 import com.apollographql.apollo.sample.CreateUserMutation;
@@ -33,6 +32,12 @@ import java.util.concurrent.Executor;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 
+import io.reactivex.disposables.Disposable;
+import io.reactivex.subjects.BehaviorSubject;
+
+import static com.coders.dope.repositories.ChatStatus.CHAT_CONNECTED;
+import static com.coders.dope.repositories.ChatStatus.CHAT_DISCONNECTED;
+
 
 /*
 Bidirectional Com.
@@ -43,6 +48,7 @@ Bidirectional Com.
 public class MessagesRepository implements NewMessageSubject, ApolloConnection {
 
     private static final String TAG = MessagesRepository.class.getSimpleName();
+
     private final Executor executor;
     private final MessageDao messageDao;
     private final ApolloClient apolloClient;
@@ -53,10 +59,11 @@ public class MessagesRepository implements NewMessageSubject, ApolloConnection {
     private List<ChatMessage> initialMessages;
     private static long longRetryTime  = 5000L;
     private static long shortRetryTime = 500L;
+    private Disposable subscribe;
 
     private String status = "";
-    //TODO unit testing
-    //TODO with RxComponents.
+    io.reactivex.subjects.BehaviorSubject<String> stringSubject = BehaviorSubject.create();
+
     // Some ideas make an implementation of MessageViewModel, pass to ModelView  and from MView to MainActivity so it can manange the lifecycle of Sockets
     @Inject
     public MessagesRepository(Executor executor, MessageDao messageDao, ApolloClient apolloClient) {
@@ -70,6 +77,8 @@ public class MessagesRepository implements NewMessageSubject, ApolloConnection {
 
     }
     private void rxInit(){
+        subscribe= stringSubject.distinctUntilChanged().subscribe(this::notifyStatus); //HERE notift status!
+
 
     }
     @Override
@@ -77,13 +86,14 @@ public class MessagesRepository implements NewMessageSubject, ApolloConnection {
         LoggerDebug.print("observers initialized", TAG);
         if (!observers.contains(observer)) {
             observers.add(observer);
+            observer.initialState(stringSubject.getValue());
+
         }
     }
 
     @Override
     public void delete(NewMessagesObserver observer) {
         observers.remove(observer);
-        //TODO idea when there are not any observer destroy this
         if (observers.size() == 0) {
             LoggerDebug.print("ObserverSize = 0", TAG);
 
@@ -115,23 +125,22 @@ public class MessagesRepository implements NewMessageSubject, ApolloConnection {
 
     @Override
     public void notifyStatus(String socketStatus) {
-        LoggerDebug.print("Socket Status: " + socketStatus, TAG);
         for (final NewMessagesObserver observer : observers) {
-            observer.updateSocketStatus(socketStatus);
+            LoggerDebug.print("Socket Status: " + socketStatus, TAG);
+
+            observer.updateChatStatus(socketStatus);
         }
 
     }
 
 
-    public void setmUsername(String mUsername) {//TODO hacer obligatorio poner el username
+    public void setmUsername(String mUsername) {
         this.mUsername = mUsername;
     }
 
     public void connectWithServer() {
         if (!userIdExists())
             getUserID();
-
-
     }
 
     /**
@@ -143,6 +152,7 @@ public class MessagesRepository implements NewMessageSubject, ApolloConnection {
             public void onResponse(@NotNull Response<CreateUserMutation.Data> response) {
                 if (response.data() != null) {
                     userID = response.data().newUser().userId();
+                    stringSubject.onNext(CHAT_CONNECTED);
                     startListening();
                     queryTest();
                     LoggerDebug.print("UserID: " + userID, TAG);
@@ -160,6 +170,9 @@ public class MessagesRepository implements NewMessageSubject, ApolloConnection {
                         connectWithServer();
                         waitsFunction(longRetryTime);
                     });
+                    stringSubject.onNext(CHAT_DISCONNECTED);
+
+
 
                 }
             }
@@ -277,6 +290,8 @@ public class MessagesRepository implements NewMessageSubject, ApolloConnection {
                     if (response.data() != null) {
                         LoggerDebug.print(TAG, "response from mutation: " + response.data().toString());
                         LoggerDebug.print("Success MODERFUCKER", TAG);
+                        stringSubject.onNext(CHAT_CONNECTED);
+
 
                     } else
                         LoggerDebug.print(TAG, "Response is null!!");
@@ -285,6 +300,7 @@ public class MessagesRepository implements NewMessageSubject, ApolloConnection {
                 @Override
                 public void onFailure(@NotNull ApolloException e) {
                     LoggerDebug.print(TAG, "Failure Error: " + e.getCause() + " 2_ " + e.getMessage() + "3." + e.getLocalizedMessage());
+
                     //  retrySendMessage(messageOutput);
 
                 }
@@ -292,7 +308,8 @@ public class MessagesRepository implements NewMessageSubject, ApolloConnection {
                 @Override
                 public void onNetworkError(@NotNull ApolloNetworkException e) {
                     super.onNetworkError(e);
-                    LoggerDebug.print(TAG, "Netwok Error: " + e.getCause() + " 2_ " + e.getMessage() + "3." + e.getLocalizedMessage());
+                    LoggerDebug.print(TAG, "Network Error: " + e.getCause() + " 2_ " + e.getMessage() + "3." + e.getLocalizedMessage());
+                    stringSubject.onNext(CHAT_DISCONNECTED);
                     executor.execute(()->{
                         waitsFunction(longRetryTime);
                         sendMessage(messageOutput);
@@ -300,11 +317,7 @@ public class MessagesRepository implements NewMessageSubject, ApolloConnection {
 
                 }
 
-                @Override
-                public void onHttpError(@NotNull ApolloHttpException e) {
-                    LoggerDebug.print(TAG, "Htttp Error: " + e.getCause() + " 2_ " + e.getMessage() + "3." + e.getLocalizedMessage());
 
-                }
 
             });
             LoggerDebug.printMessageTrace(messageOutput.getMessage(), TAG, LoggerDebug.MODE_SENDING);
@@ -319,6 +332,7 @@ public class MessagesRepository implements NewMessageSubject, ApolloConnection {
                     LoggerDebug.print("is Listening!", TAG);
                 }
                 sendMessage(messageOutput);
+                stringSubject.onNext(CHAT_DISCONNECTED);
 
 
             });
@@ -367,6 +381,7 @@ public class MessagesRepository implements NewMessageSubject, ApolloConnection {
 
     public void closeConnection() {
         LoggerDebug.print("Trying to close connection", TAG);
+        subscribe.dispose();
         apolloClient.mutate(DeleteThisUserMutation.builder().deleteUser(DeleteUserInput.builder().userId(userID).username(mUsername).build()).build())
                 .enqueue(new Callback<DeleteThisUserMutation.Data>() {
                     @Override

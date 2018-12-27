@@ -99,9 +99,14 @@ public class MessagesViewModel extends ViewModel implements NewMessagesObserver 
     }
 
     @Override
-    public void updateSocketStatus(String socketStatus) {
-        LoggerDebug.print("SocketStatus: " + socketStatus, TAG);
+    public void updateChatStatus(String socketStatus) {
+        LoggerDebug.print("ChatStatus: " + socketStatus, TAG);
         statusLiveData.postValue(socketStatus);
+    }
+
+    @Override
+    public void initialState(String status) {
+        statusLiveData.postValue(status);
     }
 
 
@@ -112,12 +117,11 @@ public class MessagesViewModel extends ViewModel implements NewMessagesObserver 
 
     /**
      * Send a message to the repository, connecting UI with MessagesRepo.
-     * TODO:Disable messages if they cant connect!
+     *
      */
 
     public void sendMessage(ChatMessage message) {
         messagesRepository.sendMessage(message);
-        //TODO make ChatMessage object and dont forget update the chatMessage LD
         Objects.requireNonNull(chatMessages.getValue()).add(message);
         chatMessages.postValue(chatMessages.getValue());
         LoggerDebug.printMessageTrace(message.getMessage(), TAG, LoggerDebug.MODE_SENDING);
@@ -125,7 +129,6 @@ public class MessagesViewModel extends ViewModel implements NewMessagesObserver 
 
 
     public MutableLiveData<String> getStatusLiveData() {
-
         return statusLiveData;
     }
 
